@@ -10,7 +10,7 @@ type Scrambled struct {
 }
 
 func NewScrambled() *Scrambled {
-	return &Scrambled{r: rand.NewSource(time.Now().UnixNano())}
+	return NewSeededScrambled(time.Now().UnixNano())
 }
 
 func NewSeededScrambled(seed int64) *Scrambled {
