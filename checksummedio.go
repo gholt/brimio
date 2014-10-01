@@ -340,7 +340,7 @@ func (cwi *multiCoreChecksummedWriter) Close() error {
 	for i := 0; i < cap(cwi.checksumChan); i++ {
 		<-cwi.doneChan
 	}
-	close(cwi.writeChan)
+	cwi.writeChan <- nil
 	<-cwi.doneChan
 	return cwi.err
 }
@@ -362,10 +362,16 @@ func (cwi *multiCoreChecksummedWriter) checksummer() {
 
 func (cwi *multiCoreChecksummedWriter) writer() {
 	var seq int64
+	var lastWasNil bool
 	for {
 		b := <-cwi.writeChan
 		if b == nil {
-			break
+			if lastWasNil {
+				break
+			}
+			lastWasNil = true
+			cwi.writeChan <- nil
+			continue
 		}
 		if b.seq != seq {
 			cwi.writeChan <- b
