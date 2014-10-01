@@ -262,6 +262,126 @@ func (cwi *checksummedWriterImpl) Close() error {
 	return err
 }
 
+type multiCoreChecksummedWriter struct {
+	delegate         io.Writer
+	checksumInterval int
+	newHash          func() hash.Hash32
+	hash             hash.Hash32
+	buffer           *multiCoreChecksummedWriterBuffer
+	freeChan         chan *multiCoreChecksummedWriterBuffer
+	checksumChan     chan *multiCoreChecksummedWriterBuffer
+	writeChan        chan *multiCoreChecksummedWriterBuffer
+	doneChan         chan struct{}
+	err              error
+	closed           bool
+}
+
+type multiCoreChecksummedWriterBuffer struct {
+	seq int64
+	buf []byte
+}
+
+// NewMultiCoreChecksummedWriter returns a ChecksummedWriter that delegates
+// requests to an underlying io.Writer and embeds checksums of the content at
+// given intervals using the hashing function given; it will use multiple cores
+// for computing the checksums.
+//
+// Note that this is generally only faster for large files and reasonably sized
+// checksum intervals (e.g. 65532).
+func NewMultiCoreChecksummedWriter(delegate io.Writer, checksumInterval int, newHash func() hash.Hash32, cores int) ChecksummedWriter {
+	cwi := &multiCoreChecksummedWriter{
+		delegate:         delegate,
+		checksumInterval: checksumInterval,
+		newHash:          newHash,
+		freeChan:         make(chan *multiCoreChecksummedWriterBuffer, cores),
+		checksumChan:     make(chan *multiCoreChecksummedWriterBuffer, cores),
+		writeChan:        make(chan *multiCoreChecksummedWriterBuffer, cores),
+		doneChan:         make(chan struct{}),
+	}
+	for i := 0; i < cores; i++ {
+		cwi.freeChan <- &multiCoreChecksummedWriterBuffer{0, make([]byte, 0, checksumInterval+4)}
+	}
+	cwi.buffer = <-cwi.freeChan
+	go cwi.writer()
+	for i := 0; i < cores; i++ {
+		go cwi.checksummer()
+	}
+	return cwi
+}
+
+func (cwi *multiCoreChecksummedWriter) Write(v []byte) (int, error) {
+	var n int
+	for len(cwi.buffer.buf)+len(v) >= cwi.checksumInterval {
+		n2 := cwi.checksumInterval - len(cwi.buffer.buf)
+		cwi.buffer.buf = append(cwi.buffer.buf, v[:n2]...)
+		s := cwi.buffer.seq + 1
+		cwi.checksumChan <- cwi.buffer
+		n += n2
+		v = v[n2:]
+		cwi.buffer = <-cwi.freeChan
+		cwi.buffer.seq = s
+	}
+	if len(v) > 0 {
+		cwi.buffer.buf = append(cwi.buffer.buf, v...)
+		n += len(v)
+	}
+	return n, cwi.err
+}
+
+func (cwi *multiCoreChecksummedWriter) Close() error {
+	if cwi.closed {
+		return cwi.err
+	}
+	cwi.closed = true
+	if len(cwi.buffer.buf) > 0 {
+		cwi.checksumChan <- cwi.buffer
+	}
+	close(cwi.checksumChan)
+	for i := 0; i < cap(cwi.checksumChan); i++ {
+		<-cwi.doneChan
+	}
+	close(cwi.writeChan)
+	<-cwi.doneChan
+	return cwi.err
+}
+
+func (cwi *multiCoreChecksummedWriter) checksummer() {
+	for {
+		b := <-cwi.checksumChan
+		if b == nil {
+			break
+		}
+		h := cwi.newHash()
+		h.Write(b.buf)
+		b.buf = b.buf[:len(b.buf)+4]
+		binary.BigEndian.PutUint32(b.buf[len(b.buf)-4:], h.Sum32())
+		cwi.writeChan <- b
+	}
+	cwi.doneChan <- struct{}{}
+}
+
+func (cwi *multiCoreChecksummedWriter) writer() {
+	var seq int64
+	for {
+		b := <-cwi.writeChan
+		if b == nil {
+			break
+		}
+		if b.seq != seq {
+			cwi.writeChan <- b
+			continue
+		}
+		_, cwi.err = cwi.delegate.Write(b.buf)
+		b.buf = b.buf[:0]
+		cwi.freeChan <- b
+		seq++
+	}
+	if c, ok := cwi.delegate.(io.Closer); ok {
+		cwi.err = c.Close()
+	}
+	cwi.doneChan <- struct{}{}
+}
+
 type errDelegate struct {
 }
 

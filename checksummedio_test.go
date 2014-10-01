@@ -5,6 +5,7 @@ import (
 	"hash/crc32"
 	"io"
 	"io/ioutil"
+	"runtime"
 	"testing"
 )
 
@@ -289,5 +290,166 @@ func TestChecksummedWriter(t *testing.T) {
 	hash3.Write([]byte("stuvwxyz"))
 	if !bytes.Equal(buf.Bytes(), []byte("1234567890123456"+string(hash.Sum(nil))+"7890ghijklmnopqr"+string(hash2.Sum(nil))+"stuvwxyz"+string(hash3.Sum(nil)))) {
 		t.Fatalf("%#v", string(buf.Bytes()))
+	}
+}
+
+func TestMultiCoreChecksummedWriter(t *testing.T) {
+	buf := &bytes.Buffer{}
+	cw := NewMultiCoreChecksummedWriter(buf, 16, crc32.NewIEEE, runtime.GOMAXPROCS(0))
+	if cw == nil {
+		t.Fatal(cw)
+	}
+	n, err := cw.Write([]byte("12345678901234567890"))
+	if n != 20 {
+		t.Fatal(n)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := crc32.NewIEEE()
+	hash.Write([]byte("1234567890123456"))
+	n, err = cw.Write([]byte("ghijklmnopqrstuvwxyz"))
+	if n != 20 {
+		t.Fatal(n)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash2 := crc32.NewIEEE()
+	hash2.Write([]byte("7890ghijklmnopqr"))
+	err = cw.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash3 := crc32.NewIEEE()
+	hash3.Write([]byte("stuvwxyz"))
+	if !bytes.Equal(buf.Bytes(), []byte("1234567890123456"+string(hash.Sum(nil))+"7890ghijklmnopqr"+string(hash2.Sum(nil))+"stuvwxyz"+string(hash3.Sum(nil)))) {
+		t.Fatalf("%#v", string(buf.Bytes()))
+	}
+}
+
+func Benchmark16x7ChecksummedWriter________________(b *testing.B) {
+	cw := NewChecksummedWriter(&NullIO{}, 16, crc32.NewIEEE)
+	v := []byte{1, 2, 3, 4, 5, 6, 7}
+	b.SetBytes(int64(len(v)))
+	for i := 0; i < b.N; i++ {
+		n, err := cw.Write(v)
+		if n != len(v) {
+			panic(n)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark16x7MultiCoreChecksummedWriter_______(b *testing.B) {
+	cw := NewMultiCoreChecksummedWriter(&NullIO{}, 16, crc32.NewIEEE, runtime.GOMAXPROCS(0))
+	v := []byte{1, 2, 3, 4, 5, 6, 7}
+	b.SetBytes(int64(len(v)))
+	for i := 0; i < b.N; i++ {
+		n, err := cw.Write(v)
+		if n != len(v) {
+			panic(n)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark16x60001ChecksummedWriter____________(b *testing.B) {
+	cw := NewChecksummedWriter(&NullIO{}, 16, crc32.NewIEEE)
+	v := make([]byte, 60001)
+	NewSeededScrambled(1).Read(v)
+	b.SetBytes(int64(len(v)))
+	for i := 0; i < b.N; i++ {
+		n, err := cw.Write(v)
+		if n != len(v) {
+			panic(n)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark16x60001MultiCoreChecksummedWriter___(b *testing.B) {
+	cw := NewMultiCoreChecksummedWriter(&NullIO{}, 16, crc32.NewIEEE, runtime.GOMAXPROCS(0))
+	v := make([]byte, 60001)
+	NewSeededScrambled(1).Read(v)
+	b.SetBytes(int64(len(v)))
+	for i := 0; i < b.N; i++ {
+		n, err := cw.Write(v)
+		if n != len(v) {
+			panic(n)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark65532x7ChecksummedWriter_____________(b *testing.B) {
+	cw := NewChecksummedWriter(&NullIO{}, 65532, crc32.NewIEEE)
+	v := []byte{1, 2, 3, 4, 5, 6, 7}
+	NewSeededScrambled(1).Read(v)
+	b.SetBytes(int64(len(v)))
+	for i := 0; i < b.N; i++ {
+		n, err := cw.Write(v)
+		if n != len(v) {
+			panic(n)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark65532x7MultiCoreChecksummedWriter____(b *testing.B) {
+	cw := NewMultiCoreChecksummedWriter(&NullIO{}, 65532, crc32.NewIEEE, runtime.GOMAXPROCS(0))
+	v := []byte{1, 2, 3, 4, 5, 6, 7}
+	NewSeededScrambled(1).Read(v)
+	b.SetBytes(int64(len(v)))
+	for i := 0; i < b.N; i++ {
+		n, err := cw.Write(v)
+		if n != len(v) {
+			panic(n)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark65532x60001ChecksummedWriter_________(b *testing.B) {
+	cw := NewChecksummedWriter(&NullIO{}, 65532, crc32.NewIEEE)
+	v := make([]byte, 60001)
+	NewSeededScrambled(1).Read(v)
+	b.SetBytes(int64(len(v)))
+	for i := 0; i < b.N; i++ {
+		n, err := cw.Write(v)
+		if n != len(v) {
+			panic(n)
+		}
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func Benchmark65532x60001MultiCoreChecksummedWriter(b *testing.B) {
+	cw := NewMultiCoreChecksummedWriter(&NullIO{}, 65532, crc32.NewIEEE, runtime.GOMAXPROCS(0))
+	v := make([]byte, 60001)
+	NewSeededScrambled(1).Read(v)
+	b.SetBytes(int64(len(v)))
+	for i := 0; i < b.N; i++ {
+		n, err := cw.Write(v)
+		if n != len(v) {
+			panic(n)
+		}
+		if err != nil {
+			panic(err)
+		}
 	}
 }
