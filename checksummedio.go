@@ -287,7 +287,8 @@ type multiCoreChecksummedWriterBuffer struct {
 // for computing the checksums.
 //
 // Note that this is generally only faster for large files and reasonably sized
-// checksum intervals (e.g. 65532).
+// checksum intervals (e.g. 65532). It can be quite a bit slower on single core
+// systems or when using tiny checksum intervals.
 func NewMultiCoreChecksummedWriter(delegate io.Writer, checksumInterval int, newHash func() hash.Hash32, cores int) ChecksummedWriter {
 	cwi := &multiCoreChecksummedWriter{
 		delegate:         delegate,
