@@ -374,6 +374,7 @@ func (cwi *multiCoreChecksummedWriter) writer() {
 			cwi.writeChan <- nil
 			continue
 		}
+		lastWasNil = false
 		if b.seq != seq {
 			cwi.writeChan <- b
 			continue
