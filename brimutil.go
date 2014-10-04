@@ -31,3 +31,12 @@ func NormalizePath(value string) string {
 	}
 	return value
 }
+
+// Simply returns n where math.Pow(2, n) >= v.
+func PowerOfTwoNeeded(v uint64) uint64 {
+	var p uint64 = 1
+	for 1<<p < v {
+		p++
+	}
+	return p
+}
