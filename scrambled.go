@@ -16,8 +16,8 @@ func NewScrambled() *Scrambled {
 	return NewSeededScrambled(time.Now().UnixNano())
 }
 
-// NewScrambled returns a Scrambled with a specific random seed; useful for
-// repeatable test/benchmark scenarios.
+// NewSeededScrambled returns a Scrambled with a specific random seed; useful
+// for repeatable test/benchmark scenarios.
 func NewSeededScrambled(seed int64) *Scrambled {
 	return &Scrambled{r: rand.NewSource(seed)}
 }
