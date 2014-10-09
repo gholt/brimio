@@ -1,5 +1,6 @@
 package brimutil
 
+// NullIO implements io.WriteCloser by throwing away all data.
 type NullIO struct {
 }
 

@@ -5,14 +5,19 @@ import (
 	"time"
 )
 
+// Scrambled implements io.Reader by returning random data.
 type Scrambled struct {
 	r rand.Source
 }
 
+// NewScrambled returns a Scrambled with the random seed based on the current
+// time.
 func NewScrambled() *Scrambled {
 	return NewSeededScrambled(time.Now().UnixNano())
 }
 
+// NewScrambled returns a Scrambled with a specific random seed; useful for
+// repeatable test/benchmark scenarios.
 func NewSeededScrambled(seed int64) *Scrambled {
 	return &Scrambled{r: rand.NewSource(seed)}
 }
