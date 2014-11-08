@@ -32,11 +32,16 @@ func NormalizePath(value string) string {
 	return value
 }
 
-// Simply returns n where math.Pow(2, n) >= v.
-func PowerOfTwoNeeded(v uint64) uint64 {
-	var p uint64 = 1
-	for 1<<p < v {
-		p++
-	}
-	return p
+// NextHighestPowerOfTwo returns the next highest power of 2 from v; assuming v
+// is > 0. http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+func NextHighestPowerOfTwo(v uint64) uint64 {
+	v--
+	v |= v >> 1
+	v |= v >> 2
+	v |= v >> 4
+	v |= v >> 8
+	v |= v >> 16
+	v |= v >> 32
+	v++
+	return v
 }
