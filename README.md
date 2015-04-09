@@ -10,7 +10,7 @@ For the latest stable version of the package, switch to the
 [v1 branch](https://github.com/gholt/brimutil/tree/v1)  
 or use `gopkg.in/gholt/brimutil.v1` as the import path.  
 Also, you'd want to use the
-[V1 API Document](http://godoc.org/gopkg.in/gholt/brimutil.v1).
+[V1 API Documentation](http://godoc.org/gopkg.in/gholt/brimutil.v1).
 
 > Copyright Gregory Holt. All rights reserved.  
 > Use of this source code is governed by a BSD-style  
