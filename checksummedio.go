@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"sync"
 )
 
 // ChecksummedReader reads content written by ChecksummedWriter, verifying
@@ -272,6 +273,7 @@ type multiCoreChecksummedWriter struct {
 	checksumChan     chan *multiCoreChecksummedWriterBuffer
 	writeChan        chan *multiCoreChecksummedWriterBuffer
 	doneChan         chan struct{}
+	lock             sync.Mutex
 	err              error
 	closed           bool
 }
@@ -326,14 +328,21 @@ func (cwi *multiCoreChecksummedWriter) Write(v []byte) (int, error) {
 		cwi.buffer.buf = append(cwi.buffer.buf, v...)
 		n += len(v)
 	}
-	return n, cwi.err
+	cwi.lock.Lock()
+	err := cwi.err
+	cwi.lock.Unlock()
+	return n, err
 }
 
 func (cwi *multiCoreChecksummedWriter) Close() error {
+	cwi.lock.Lock()
 	if cwi.closed {
-		return cwi.err
+		err := cwi.err
+		cwi.lock.Unlock()
+		return err
 	}
 	cwi.closed = true
+	cwi.lock.Unlock()
 	if len(cwi.buffer.buf) > 0 {
 		cwi.checksumChan <- cwi.buffer
 	}
@@ -343,7 +352,10 @@ func (cwi *multiCoreChecksummedWriter) Close() error {
 	}
 	cwi.writeChan <- nil
 	<-cwi.doneChan
-	return cwi.err
+	cwi.lock.Lock()
+	err := cwi.err
+	cwi.lock.Unlock()
+	return err
 }
 
 func (cwi *multiCoreChecksummedWriter) checksummer() {
@@ -379,13 +391,19 @@ func (cwi *multiCoreChecksummedWriter) writer() {
 			cwi.writeChan <- b
 			continue
 		}
-		_, cwi.err = cwi.delegate.Write(b.buf)
+		_, err := cwi.delegate.Write(b.buf)
+		cwi.lock.Lock()
+		cwi.err = err
+		cwi.lock.Unlock()
 		b.buf = b.buf[:0]
 		cwi.freeChan <- b
 		seq++
 	}
 	if c, ok := cwi.delegate.(io.Closer); ok {
-		cwi.err = c.Close()
+		err := c.Close()
+		cwi.lock.Lock()
+		cwi.err = err
+		cwi.lock.Unlock()
 	}
 	cwi.doneChan <- struct{}{}
 }
