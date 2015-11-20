@@ -59,8 +59,8 @@ func NewChecksummedReader(delegate io.ReadSeeker, interval int, newHash func() h
 // special care when working with ChecksummedReader later and is beyond the
 // basic usage described here.
 //
-// Also, do not forget to Close the ChecksummedWriter to ensure the final
-// checksum is emitted.
+// Also, note that the trailing bytes may not be covered by a checksum unless
+// it happens to just fall on a checksum interval.
 type ChecksummedWriter interface {
 	// Write implements the io.Writer interface.
 	Write(v []byte) (n int, err error)
@@ -80,7 +80,6 @@ type checksummedReaderImpl struct {
 	checksumInterval int
 	checksumOffset   int
 	newHash          func() hash.Hash32
-	hash             hash.Hash32
 	checksum         []byte
 }
 
@@ -99,27 +98,10 @@ func (cri *checksummedReaderImpl) Read(v []byte) (int, error) {
 	}
 	n, err := cri.delegate.Read(v)
 	cri.checksumOffset += n
-	if err == io.EOF {
-		n -= 4
-		if n < 0 {
-			n = 0
-		}
-	} else if err == nil {
+	if err == nil {
 		if cri.checksumOffset == cri.checksumInterval {
-			n2, err := io.ReadFull(cri.delegate, cri.checksum)
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				n -= 4 - n2
-				err = io.EOF
-			}
+			io.ReadFull(cri.delegate, cri.checksum)
 			cri.checksumOffset = 0
-		} else {
-			n2, err := io.ReadFull(cri.delegate, cri.checksum)
-			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				n -= 4 - n2
-				err = io.EOF
-			} else {
-				_, err = cri.delegate.Seek(-int64(n2), 1)
-			}
 		}
 	}
 	return n, err
@@ -132,23 +114,23 @@ func (cri *checksummedReaderImpl) Seek(offset int64, whence int) (int64, error) 
 		o, err := cri.delegate.Seek(0, 1)
 		cri.checksumOffset = int(o % (int64(cri.checksumInterval) + 4))
 		if err != nil {
-			return o - (o / int64(cri.checksumInterval) * 4), err
+			return o - (o / (int64(cri.checksumInterval) + 4) * 4), err
 		}
-		offset = o - (o / int64(cri.checksumInterval) * 4) + offset
+		offset = o - (o / (int64(cri.checksumInterval) + 4) * 4) + offset
 	case 2:
 		o, err := cri.delegate.Seek(0, 2)
 		cri.checksumOffset = int(o % (int64(cri.checksumInterval) + 4))
 		if err != nil {
-			return o - (o / int64(cri.checksumInterval) * 4), err
+			return o - (o / (int64(cri.checksumInterval) + 4) * 4), err
 		}
-		offset = o - (o / int64(cri.checksumInterval) * 4) + offset
+		offset = o - (o / (int64(cri.checksumInterval) + 4) * 4) + offset
 	default:
 		o, _ := cri.delegate.Seek(0, 1)
 		return o, fmt.Errorf("invalid whence %d", whence)
 	}
 	o, err := cri.delegate.Seek(offset+(offset/int64(cri.checksumInterval)*4), 0)
 	cri.checksumOffset = int(o % (int64(cri.checksumInterval) + 4))
-	return o - (o / int64(cri.checksumInterval) * 4), err
+	return o - (o / (int64(cri.checksumInterval) + 4) * 4), err
 }
 
 func (cri *checksummedReaderImpl) Verify() (bool, error) {
@@ -164,15 +146,11 @@ func (cri *checksummedReaderImpl) Verify() (bool, error) {
 	}
 	block := make([]byte, cri.checksumInterval+4)
 	checksum := block[cri.checksumInterval:]
-	n, err := io.ReadFull(cri.delegate, block)
-	if err == io.ErrUnexpectedEOF {
-		checksum = block[n-4 : n]
-		block = block[:n-4]
-	} else if err != nil {
+	_, err = io.ReadFull(cri.delegate, block)
+	if err != nil {
 		return false, err
-	} else {
-		block = block[:cri.checksumInterval]
 	}
+	block = block[:cri.checksumInterval]
 	hash := cri.newHash()
 	hash.Write(block)
 	verified := bytes.Equal(checksum, hash.Sum(cri.checksum[:0]))
@@ -248,14 +226,6 @@ func (cwi *checksummedWriterImpl) Write(v []byte) (int, error) {
 
 func (cwi *checksummedWriterImpl) Close() error {
 	var err error
-	if cwi.checksumOffset > 0 {
-		binary.BigEndian.PutUint32(cwi.checksum, cwi.hash.Sum32())
-		_, err = cwi.delegate.Write(cwi.checksum)
-		if err != nil {
-			cwi.delegate = _ERR_DELEGATE
-			return err
-		}
-	}
 	if c, ok := cwi.delegate.(io.Closer); ok {
 		err = c.Close()
 	}
@@ -364,10 +334,12 @@ func (cwi *multiCoreChecksummedWriter) checksummer() {
 		if b == nil {
 			break
 		}
-		h := cwi.newHash()
-		h.Write(b.buf)
-		b.buf = b.buf[:len(b.buf)+4]
-		binary.BigEndian.PutUint32(b.buf[len(b.buf)-4:], h.Sum32())
+		if len(b.buf) >= cwi.checksumInterval {
+			h := cwi.newHash()
+			h.Write(b.buf)
+			b.buf = b.buf[:len(b.buf)+4]
+			binary.BigEndian.PutUint32(b.buf[len(b.buf)-4:], h.Sum32())
+		}
 		cwi.writeChan <- b
 	}
 	cwi.doneChan <- struct{}{}

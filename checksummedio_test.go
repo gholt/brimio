@@ -31,9 +31,7 @@ func TestChecksummedReader(t *testing.T) {
 	hash.Write([]byte("1234567890123456"))
 	hash2 := crc32.NewIEEE()
 	hash2.Write([]byte("7890ghijklmnopqr"))
-	hash3 := crc32.NewIEEE()
-	hash3.Write([]byte("stuvwxyz"))
-	if !bytes.Equal(buf.Bytes(), []byte("1234567890123456"+string(hash.Sum(nil))+"7890ghijklmnopqr"+string(hash2.Sum(nil))+"stuvwxyz"+string(hash3.Sum(nil)))) {
+	if !bytes.Equal(buf.Bytes(), []byte("1234567890123456"+string(hash.Sum(nil))+"7890ghijklmnopqr"+string(hash2.Sum(nil))+"stuvwxyz")) {
 		t.Fatalf("%#v", string(buf.Bytes()))
 	}
 	// Test reading all data straight through
@@ -225,6 +223,7 @@ func TestChecksummedReader(t *testing.T) {
 		t.Fatalf("%#v", string(v))
 	}
 	// Test verifying shortened last interval in file
+	// In such a case, the ending bytes are not covered by a checksum
 	o, err = cr.Seek(35, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -233,11 +232,18 @@ func TestChecksummedReader(t *testing.T) {
 		t.Fatal(o)
 	}
 	ok, err = cr.Verify()
+	if err != io.ErrUnexpectedEOF {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal(ok)
+	}
+	o, err = cr.Seek(35, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ok {
-		t.Fatal(ok)
+	if o != 35 {
+		t.Fatal(o)
 	}
 	v = make([]byte, 4)
 	n, err = io.ReadFull(cr, v)
@@ -286,9 +292,7 @@ func TestChecksummedWriter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hash3 := crc32.NewIEEE()
-	hash3.Write([]byte("stuvwxyz"))
-	if !bytes.Equal(buf.Bytes(), []byte("1234567890123456"+string(hash.Sum(nil))+"7890ghijklmnopqr"+string(hash2.Sum(nil))+"stuvwxyz"+string(hash3.Sum(nil)))) {
+	if !bytes.Equal(buf.Bytes(), []byte("1234567890123456"+string(hash.Sum(nil))+"7890ghijklmnopqr"+string(hash2.Sum(nil))+"stuvwxyz")) {
 		t.Fatalf("%#v", string(buf.Bytes()))
 	}
 }
@@ -323,7 +327,7 @@ func TestMultiCoreChecksummedWriter(t *testing.T) {
 	}
 	hash3 := crc32.NewIEEE()
 	hash3.Write([]byte("stuvwxyz"))
-	if !bytes.Equal(buf.Bytes(), []byte("1234567890123456"+string(hash.Sum(nil))+"7890ghijklmnopqr"+string(hash2.Sum(nil))+"stuvwxyz"+string(hash3.Sum(nil)))) {
+	if !bytes.Equal(buf.Bytes(), []byte("1234567890123456"+string(hash.Sum(nil))+"7890ghijklmnopqr"+string(hash2.Sum(nil))+"stuvwxyz")) {
 		t.Fatalf("%#v", string(buf.Bytes()))
 	}
 }
