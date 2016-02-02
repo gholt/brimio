@@ -236,6 +236,7 @@ func (cwi *checksummedWriterImpl) Close() error {
 type multiCoreChecksummedWriter struct {
 	delegate         io.Writer
 	checksumInterval int
+	cores            int
 	newHash          func() hash.Hash32
 	hash             hash.Hash32
 	buffer           *multiCoreChecksummedWriterBuffer
@@ -266,9 +267,10 @@ func NewMultiCoreChecksummedWriter(delegate io.Writer, checksumInterval int, new
 		delegate:         delegate,
 		checksumInterval: checksumInterval,
 		newHash:          newHash,
-		freeChan:         make(chan *multiCoreChecksummedWriterBuffer, cores),
-		checksumChan:     make(chan *multiCoreChecksummedWriterBuffer, cores),
-		writeChan:        make(chan *multiCoreChecksummedWriterBuffer, cores),
+		cores:            cores,
+		freeChan:         make(chan *multiCoreChecksummedWriterBuffer, cores+1),
+		checksumChan:     make(chan *multiCoreChecksummedWriterBuffer, cores+1),
+		writeChan:        make(chan *multiCoreChecksummedWriterBuffer, cores+1),
 		doneChan:         make(chan struct{}),
 	}
 	for i := 0; i < cores; i++ {
@@ -317,7 +319,7 @@ func (cwi *multiCoreChecksummedWriter) Close() error {
 		cwi.checksumChan <- cwi.buffer
 	}
 	close(cwi.checksumChan)
-	for i := 0; i < cap(cwi.checksumChan); i++ {
+	for i := 0; i < cwi.cores; i++ {
 		<-cwi.doneChan
 	}
 	cwi.writeChan <- nil
