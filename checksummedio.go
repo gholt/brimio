@@ -166,7 +166,7 @@ func (cri *checksummedReaderImpl) Close() error {
 	if c, ok := cri.delegate.(io.Closer); ok {
 		err = c.Close()
 	}
-	cri.delegate = _ERR_DELEGATE
+	cri.delegate = errDelegate
 	return err
 }
 
@@ -197,7 +197,7 @@ func (cwi *checksummedWriterImpl) Write(v []byte) (int, error) {
 		n2, err = cwi.delegate.Write(v[:cwi.checksumInterval-cwi.checksumOffset])
 		n += n2
 		if err != nil {
-			cwi.delegate = _ERR_DELEGATE
+			cwi.delegate = errDelegate
 			return n, err
 		}
 		cwi.hash.Write(v[:cwi.checksumInterval-cwi.checksumOffset])
@@ -205,7 +205,7 @@ func (cwi *checksummedWriterImpl) Write(v []byte) (int, error) {
 		binary.BigEndian.PutUint32(cwi.checksum, cwi.hash.Sum32())
 		_, err = cwi.delegate.Write(cwi.checksum)
 		if err != nil {
-			cwi.delegate = _ERR_DELEGATE
+			cwi.delegate = errDelegate
 			return n, err
 		}
 		cwi.hash = cwi.newHash()
@@ -215,7 +215,7 @@ func (cwi *checksummedWriterImpl) Write(v []byte) (int, error) {
 		n2, err = cwi.delegate.Write(v)
 		n += n2
 		if err != nil {
-			cwi.delegate = _ERR_DELEGATE
+			cwi.delegate = errDelegate
 			return n, err
 		}
 		cwi.hash.Write(v)
@@ -229,7 +229,7 @@ func (cwi *checksummedWriterImpl) Close() error {
 	if c, ok := cwi.delegate.(io.Closer); ok {
 		err = c.Close()
 	}
-	cwi.delegate = _ERR_DELEGATE
+	cwi.delegate = errDelegate
 	return err
 }
 
@@ -382,23 +382,23 @@ func (cwi *multiCoreChecksummedWriter) writer() {
 	cwi.doneChan <- struct{}{}
 }
 
-type errDelegate struct {
+type errDelegateStruct struct {
 }
 
-var _ERR_DELEGATE = &errDelegate{}
+var errDelegate = &errDelegateStruct{}
 
-func (ed *errDelegate) Read(v []byte) (int, error) {
+func (ed *errDelegateStruct) Read(v []byte) (int, error) {
 	return 0, fmt.Errorf("closed")
 }
 
-func (ed *errDelegate) Write(v []byte) (int, error) {
+func (ed *errDelegateStruct) Write(v []byte) (int, error) {
 	return 0, fmt.Errorf("closed")
 }
 
-func (ed *errDelegate) Seek(offset int64, whence int) (int64, error) {
+func (ed *errDelegateStruct) Seek(offset int64, whence int) (int64, error) {
 	return 0, fmt.Errorf("closed")
 }
 
-func (ed *errDelegate) Close() error {
+func (ed *errDelegateStruct) Close() error {
 	return fmt.Errorf("already closed")
 }
