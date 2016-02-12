@@ -1,4 +1,4 @@
-package brimutil
+package brimio
 
 import (
 	"bytes"

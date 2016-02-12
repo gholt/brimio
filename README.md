@@ -1,17 +1,17 @@
-# BrimUtil
-## Miscellaneous Tools for Go
+# BrimIO
+## I/O Related Go Code
 
-Package brimutil contains tools there isn't another place for yet.
+**Experimental: No stable version of this package yet exists; it is still in
+early development.**
 
-[API Documentation](http://godoc.org/github.com/gholt/brimutil)
+Package brimio contains I/O related Go code.
+
+[API Documentation](http://godoc.org/github.com/gholt/brimio)
 
 This is the latest development area for the package.  
-For the latest stable version of the package, switch to the
-[v1 branch](https://github.com/gholt/brimutil/tree/v1)  
-or use `gopkg.in/gholt/brimutil.v1` as the import path.  
-Also, you'd want to use the
-[V1 API Documentation](http://godoc.org/gopkg.in/gholt/brimutil.v1).
+Eventually a stable version of the package will be established but, for now,
+all things about this package are subject to change.
 
-> Copyright Gregory Holt. All rights reserved.  
+> Copyright See AUTHORS. All rights reserved.  
 > Use of this source code is governed by a BSD-style  
 > license that can be found in the LICENSE file.
